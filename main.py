@@ -40,10 +40,36 @@ class TextoTab(QWidget):
         if not self.filepath:
             QMessageBox.warning(self, "Error", "Carga primero un .txt")
             return
+
+        # Ejecutar la compresion
         out = text_compressor.comprimir_archivo(self.filepath, OUT_DIR)
         orig = os.path.getsize(self.filepath)
         comp = os.path.getsize(out)
-        self.resultado.setPlainText(f"Comprimido: {out}\nTamaño original: {orig} bytes\nTamaño comprimido: {comp} bytes")
+
+        # 🔹 Leer el archivo comprimido (.bin) para contar los bits simulados
+        import pickle
+        with open(out, 'rb') as f:
+            freq, bits = pickle.load(f)  # "bits" es la cadena de 0 y 1
+
+        # Contar los caracteres '0' y '1'
+        count_0 = bits.count('0')
+        count_1 = bits.count('1')
+        total_bits = len(bits)
+
+        #Calculo teorico: empaquetar los bits reales
+        tamano_teorico_bytes = total_bits / 8  # dividir bits entre 8 para convertir a bytes
+        porcentaje_compresion = (1 - (tamano_teorico_bytes / orig)) * 100 if orig != 0 else 0
+
+        #Mostrar resultados
+        self.resultado.setPlainText(
+            f"Comprimido: {out}\n"
+            f"Tamaño original: {orig} bytes\n"
+            f"Tamaño comprimido (pickle): {comp} bytes\n"
+            f"Tamaño teórico (empaquetado): {tamano_teorico_bytes:.2f} bytes\n"
+            f"Compresión teórica: {porcentaje_compresion:.2f}%\n\n"
+            f"--- Estadísticas de codificación ---\n"
+            f"Total de bits simulados: {total_bits}\n"
+        )
 
     def decompress(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar .bin (Huffman)", "", "Binary files (*.bin);;All files (*)")
@@ -52,22 +78,31 @@ class TextoTab(QWidget):
         out = text_compressor.descomprimir_archivo(fn, OUT_DIR)
         QMessageBox.information(self, "Hecho", f"Archivo descomprimido: {out}")
 
-#IMAGEN
+# IMAGEN
 class ImagenTab(QWidget):
+    
     def __init__(self):
-        super().__init__(); self.init_ui()
+        super().__init__()
+        self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout()
         self.info = QLabel("Selecciona una imagen (.png/.bmp)")
         layout.addWidget(self.info)
+
         btns = QHBoxLayout()
         self.load_btn = QPushButton("Cargar imagen")
         self.compress_btn = QPushButton("Comprimir (RLE)")
         self.decompress_btn = QPushButton("Descomprimir .rle")
-        btns.addWidget(self.load_btn); btns.addWidget(self.compress_btn); btns.addWidget(self.decompress_btn)
+        btns.addWidget(self.load_btn)
+        btns.addWidget(self.compress_btn)
+        btns.addWidget(self.decompress_btn)
         layout.addLayout(btns)
-        self.result = QTextEdit(); self.result.setReadOnly(True); layout.addWidget(self.result)
+
+        self.result = QTextEdit()
+        self.result.setReadOnly(True)
+        layout.addWidget(self.result)
+
         self.setLayout(layout)
 
         self.filepath = None
@@ -76,42 +111,131 @@ class ImagenTab(QWidget):
         self.decompress_btn.clicked.connect(self.descomprimir)
 
     def cargar_archivo(self):
-        fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar imagen", "", "Images (*.png *.bmp)")
+        fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar imagen", "", "Images (*.png *.bmp *.jpg)")
         if fn:
             self.filepath = fn
-            self.info.setText(f"Imagen: {fn}")
+            # Detectar tipo de archivo
+            ext = os.path.splitext(fn)[1].lower()
+            if ext == '.bmp':
+                self.info.setText(f"✅ Imagen BMP: {fn}\n(RLE funciona muy bien con BMP)")
+            elif ext in ['.png', '.jpg', '.jpeg']:
+                self.info.setText(f"⚠️ Imagen comprimida: {fn}\n(RLE puede NO reducir el tamaño)")
+            else:
+                self.info.setText(f"Imagen: {fn}")
 
     def comprimir(self):
         if not self.filepath:
             QMessageBox.warning(self, "Error", "Carga primero una imagen")
             return
-        out = image_compressor.comprimir_imagen(self.filepath, OUT_DIR)
-        orig = os.path.getsize(self.filepath)
-        comp = os.path.getsize(out)
-        self.result.setPlainText(f"Comprimido: {out}\nTamaño original: {orig} bytes\nTamaño comprimido: {comp} bytes")
+
+        try:
+            # Ejecutar compresión
+            out = image_compressor.comprimir_imagen(self.filepath, OUT_DIR)
+            orig = os.path.getsize(self.filepath)
+            comp = os.path.getsize(out)
+
+            # Leer el archivo binario RLE para extraer estadísticas
+            with open(out, "rb") as f:
+                # Leer header (12 bytes)
+                w = int.from_bytes(f.read(4), 'big')
+                h = int.from_bytes(f.read(4), 'big')
+                num_runs = int.from_bytes(f.read(4), 'big')
+                
+                # Leer corridas y extraer colores únicos
+                unique_colors = set()
+                for _ in range(num_runs):
+                    data = f.read(4)  # R, G, B, count
+                    if len(data) < 4:
+                        break
+                    r, g, b, count = data[0], data[1], data[2], data[3]
+                    unique_colors.add((r, g, b))
+
+            # Estadísticas RLE
+            total_pixels = w * h
+            runs = num_runs
+            promedio_corrida = total_pixels / runs if runs != 0 else 0
+            porcentaje_compresion = (1 - (comp / orig)) * 100 if orig != 0 else 0
+
+            # Calcular overhead y datos reales
+            header_size = 12  # bytes
+            data_size = runs * 4  # bytes (cada corrida = 4 bytes)
+            total_calculado = header_size + data_size
+            
+            # Determinar tipo de archivo original
+            ext = os.path.splitext(self.filepath)[1].lower()
+            formato_original = "BMP (sin comprimir)" if ext == '.bmp' else f"{ext.upper()} (comprimido)"
+            
+            # Advertencia si compresión es negativa
+            advertencia = ""
+            if porcentaje_compresion < 0:
+                advertencia = ("\n⚠️ ADVERTENCIA: El archivo creció.\n"
+                              "RLE funciona mejor con archivos BMP sin comprimir\n"
+                              "o imágenes más grandes con áreas uniformes.")
+            
+            # Calcular eficiencia de RLE
+            bytes_sin_comprimir = total_pixels * 3  # RGB sin comprimir
+            ratio_vs_raw = (1 - (comp / bytes_sin_comprimir)) * 100
+            
+            # Mostrar resultados
+            self.result.setPlainText(
+                f"Comprimido: {out}\n"
+                f"Formato original: {formato_original}\n"
+                f"Tamaño original: {orig:,} bytes\n"
+                f"Tamaño comprimido: {comp:,} bytes\n"
+                f"Compresión real: {porcentaje_compresion:.2f}%{advertencia}\n\n"
+                f"--- Estadísticas RLE (Imagen) ---\n"
+                f"Dimensiones: {w} x {h} = {total_pixels:,} píxeles\n"
+                f"Corridas detectadas: {runs:,}\n"
+                f"Promedio de longitud por corrida: {promedio_corrida:.2f} píxeles\n"
+                f"Colores únicos en corridas: {len(unique_colors):,}\n\n"
+                f"--- Desglose del archivo RLE ---\n"
+                f"Header (metadatos): {header_size} bytes\n"
+                f"Datos RLE: {data_size:,} bytes ({runs:,} corridas × 4 bytes)\n"
+                f"Total calculado: {total_calculado:,} bytes\n"
+                f"Archivo real: {comp:,} bytes\n"
+                f"Overhead del header: {((header_size / comp) * 100):.4f}%\n\n"
+                f"--- Comparación con datos sin comprimir ---\n"
+                f"Tamaño raw (RGB): {bytes_sin_comprimir:,} bytes\n"
+                f"Compresión vs raw: {ratio_vs_raw:.2f}%"
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error al comprimir", f"Ocurrió un error:\n{e}")
 
     def descomprimir(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar .rle", "", "RLE files (*.rle);;All files (*)")
         if not fn:
             return
-        out = image_compressor.descomprimir_imagen(fn, OUT_DIR)
-        QMessageBox.information(self, "Hecho", f"Imagen reconstruida: {out}")
-
-#AUDIO
+        try:
+            out = image_compressor.descomprimir_imagen(fn, OUT_DIR)
+            QMessageBox.information(self, "Hecho", f"Imagen reconstruida: {out}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error al descomprimir", f"Ocurrió un error:\n{e}")
+            
+# AUDIO
 class AudioTab(QWidget):
     def __init__(self):
-        super().__init__(); self.init_ui()
+        super().__init__()
+        self.init_ui()
+
     def init_ui(self):
         layout = QVBoxLayout()
         self.info = QLabel("Selecciona un audio .wav (16-bit PCM preferible)")
         layout.addWidget(self.info)
+
         btns = QHBoxLayout()
         self.load_btn = QPushButton("Cargar .wav")
         self.compress_btn = QPushButton("Comprimir (RLE adaptado)")
         self.decompress_btn = QPushButton("Descomprimir .arle")
-        btns.addWidget(self.load_btn); btns.addWidget(self.compress_btn); btns.addWidget(self.decompress_btn)
+        btns.addWidget(self.load_btn)
+        btns.addWidget(self.compress_btn)
+        btns.addWidget(self.decompress_btn)
         layout.addLayout(btns)
-        self.result = QTextEdit(); self.result.setReadOnly(True); layout.addWidget(self.result)
+
+        self.result = QTextEdit()
+        self.result.setReadOnly(True)
+        layout.addWidget(self.result)
+
         self.setLayout(layout)
 
         self.filepath = None
@@ -129,17 +253,52 @@ class AudioTab(QWidget):
         if not self.filepath:
             QMessageBox.warning(self, "Error", "Carga primero un .wav")
             return
-        out, stats = audio_compressor.comprimir_wav(self.filepath, OUT_DIR)
-        orig = os.path.getsize(self.filepath)
-        comp = os.path.getsize(out)
-        self.result.setPlainText(f"Comprimido: {out}\nTamaño original: {orig} bytes\nTamaño comprimido: {comp} bytes\nNotas: {stats}")
+
+        try:
+            out, stats = audio_compressor.comprimir_wav(self.filepath, OUT_DIR)
+            orig = os.path.getsize(self.filepath)
+            comp = os.path.getsize(out)
+
+            import pickle
+            with open(out, 'rb') as f:
+                params, compressed = pickle.load(f)
+                # params = (nchannels, sampwidth, framerate, nframes, comptype, compname)
+                nch, sampwidth, fr, nframes, *_ = params
+
+            # Calcular estadísticas RLE adaptado
+            total_muestras = nframes * nch
+            corridas = len(compressed)
+            promedio_corrida = total_muestras / corridas if corridas != 0 else 0
+            porcentaje_compresion = (1 - (comp / orig)) * 100 if orig != 0 else 0
+
+            self.result.setPlainText(
+                f"Comprimido: {out}\n"
+                f"Tamaño original: {orig} bytes\n"
+                f"Tamaño comprimido: {comp} bytes\n"
+                f"Compresión real: {porcentaje_compresion:.2f}%\n\n"
+                f"--- Estadísticas RLE (Audio) ---\n"
+                f"Canales: {nch}\n"
+                f"Profundidad de bits: {sampwidth * 8}\n"
+                f"Muestras totales: {total_muestras}\n"
+                f"Corridas detectadas: {corridas}\n"
+                f"Promedio de longitud por corrida: {promedio_corrida:.2f} muestras\n"
+                f"Frecuencia de muestreo: {fr} Hz\n\n"
+                f"Notas del compresor:\n{stats}"
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error al comprimir", f"Ocurrió un error:\n{e}")
 
     def descomprimir(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar .arle", "", "Audio-RLE files (*.arle);;All files (*)")
         if not fn:
             return
-        out = audio_compressor.descomprimir_wav(fn, OUT_DIR)
-        QMessageBox.information(self, "Hecho", f"Audio reconstruido: {out}")
+        try:
+            out = audio_compressor.descomprimir_wav(fn, OUT_DIR)
+            QMessageBox.information(self, "Hecho", f"Audio reconstruido: {out}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error al descomprimir", f"Ocurrió un error:\n{e}")
+
 
 #VENTANA PRINCIPAL
 class VentanaPrincipal(QMainWindow):
