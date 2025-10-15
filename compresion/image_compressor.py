@@ -1,39 +1,35 @@
 import os
 from PIL import Image
 
-def comprimir_imagen(input_path, out_dir):
-    """
-    Comprime una imagen usando RLE (Run-Length Encoding) en formato binario puro
-    Formato: width(4B) + height(4B) + num_runs(4B) + [R(1B) + G(1B) + B(1B) + count(1B)]*
-    """
-    img = Image.open(input_path).convert('RGB')
+def comprimir_imagen(path_entrada, direccion_salida):
+    img = Image.open(path_entrada).convert('RGB')
     w, h = img.size
-    pixels = list(img.getdata())
+    pixeles = list(img.getdata())
 
-    if not pixels:
-        raise ValueError("Imagen vacía")
+    if not pixeles:
+        raise ValueError("Imagen vacia")
 
     # Aplicar RLE
     compressed = []
-    current_color = pixels[0]
+    colores = pixeles[0]
     count = 1
 
-    for pixel in pixels[1:]:
-        if pixel == current_color and count < 255:  # Límite 255 por byte
+    for pixel in pixeles[1:]:
+        if pixel == colores and count < 255:  # Límite 255 por byte
             count += 1
         else:
-            compressed.append((current_color, count))
-            current_color = pixel
+            compressed.append((colores, count))
+            colores = pixel
             count = 1
     
-    # Agregar la última corrida
-    compressed.append((current_color, count))
+    # Agregar la ultima corrida
+    compressed.append((colores, count))
 
     # Guardar en formato binario puro
-    basename = os.path.splitext(os.path.basename(input_path))[0]
-    out_path = os.path.join(out_dir, basename + ".rle")
+    basename = os.path.splitext(os.path.basename(path_entrada))[0]
+    path_salida = os.path.join(direccion_salida, basename + ".rle")
 
-    with open(out_path, "wb") as f:
+    with open(path_salida, "wb") as f:
         # Header: ancho, alto, número de corridas (12 bytes total)
         f.write(w.to_bytes(4, 'big'))
         f.write(h.to_bytes(4, 'big'))
@@ -43,13 +39,9 @@ def comprimir_imagen(input_path, out_dir):
         for (r, g, b), count in compressed:
             f.write(bytes([r, g, b, count]))
 
-    return out_path
-
+    return path_salida
 
 def descomprimir_imagen(rle_path, out_dir):
-    """
-    Descomprime una imagen en formato RLE binario
-    """
     with open(rle_path, "rb") as f:
         # Leer header (12 bytes)
         w = int.from_bytes(f.read(4), 'big')
@@ -57,25 +49,25 @@ def descomprimir_imagen(rle_path, out_dir):
         num_runs = int.from_bytes(f.read(4), 'big')
         
         # Leer corridas
-        pixels = []
+        pixeles = []
         for _ in range(num_runs):
-            data = f.read(4)  # R, G, B, count
+            data = f.read(4)  # R, G, B, contador
             if len(data) < 4:
                 break
             r, g, b, count = data[0], data[1], data[2], data[3]
-            pixels.extend([(r, g, b)] * count)
+            pixeles.extend([(r, g, b)] * count)
 
     # Verificar dimensiones
-    expected_pixels = w * h
-    if len(pixels) != expected_pixels:
-        raise ValueError(f"Error: se esperaban {expected_pixels} píxeles, se obtuvieron {len(pixels)}")
+    pixeles_esperados = w * h
+    if len(pixeles) != pixeles_esperados:
+        raise ValueError(f"Error: se esperaban {pixeles_esperados} pixeles, se obtuvieron {len(pixeles)}")
 
     # Crear imagen
     img = Image.new("RGB", (w, h))
-    img.putdata(pixels)
+    img.putdata(pixeles)
     
-    basename = os.path.splitext(os.path.basename(rle_path))[0]
-    out_path = os.path.join(out_dir, basename + "_descomprimido.png")
-    img.save(out_path)
+    nombre_base = os.path.splitext(os.path.basename(rle_path))[0]
+    ruta_salida = os.path.join(out_dir, nombre_base + "_descomprimido.png")
+    img.save(ruta_salida)
     
-    return out_path
+    return ruta_salida
