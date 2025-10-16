@@ -2,9 +2,11 @@ import sys, os
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QFileDialog, QMessageBox, QTextEdit, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QTabWidget, QProgressBar
 from PyQt5.QtCore import Qt
 from compresion import text_compressor, image_compressor, audio_compressor
+from PyQt5.QtGui import QFont
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "assets", "outputs")
 os.makedirs(OUT_DIR, exist_ok=True)
+fuente = QFont("Century Gothic", 12) 
 
 #TEXTO
 class TextoTab(QWidget):
@@ -15,11 +17,31 @@ class TextoTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout()
         self.info = QLabel("Selecciona un archivo .txt")
+        self.info.setFixedHeight(100)
+        self.info.setAlignment(Qt.AlignCenter)
+    
+        self.info.setFont(fuente)
+
         layout.addWidget(self.info)
         btns = QHBoxLayout()
         self.cargar_btn = QPushButton("Cargar .txt")
         self.comprimir_btn = QPushButton("Comprimir (Huffman)")
         self.descomprimir_btn = QPushButton("Descomprimir .bin")
+        for btn in [self.cargar_btn, self.comprimir_btn, self.descomprimir_btn]:
+            btn.setMinimumHeight(40)
+            btn.setFont(fuente)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background: #2f3136;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                QPushButton:hover { background: #fc5e5b; }
+                QPushButton:pressed { background: #fc5e5b; }
+            """)
         btns.addWidget(self.cargar_btn); btns.addWidget(self.comprimir_btn); btns.addWidget(self.descomprimir_btn)
         layout.addLayout(btns)
         self.resultado = QTextEdit(); self.resultado.setReadOnly(True); layout.addWidget(self.resultado)
@@ -88,12 +110,31 @@ class ImagenTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout()
         self.info = QLabel("Selecciona una imagen (.png/.bmp)")
+        self.info.setFixedHeight(100)
+        self.info.setAlignment(Qt.AlignCenter)
+    
+        self.info.setFont(fuente)
         layout.addWidget(self.info)
 
         btns = QHBoxLayout()
         self.load_btn = QPushButton("Cargar imagen")
         self.compress_btn = QPushButton("Comprimir (RLE)")
         self.decompress_btn = QPushButton("Descomprimir .rle")
+        for btn in [self.load_btn, self.compress_btn, self.decompress_btn]:
+            btn.setMinimumHeight(40)
+            btn.setFont(fuente)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background: #2f3136;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                QPushButton:hover { background: #fc5e5b; }
+                QPushButton:pressed { background: #fc5e5b; }
+            """)
         btns.addWidget(self.load_btn)
         btns.addWidget(self.compress_btn)
         btns.addWidget(self.decompress_btn)
@@ -221,12 +262,31 @@ class AudioTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout()
         self.info = QLabel("Selecciona un audio .wav (16-bit PCM preferible)")
+        self.info.setFixedHeight(100)
+        self.info.setAlignment(Qt.AlignCenter)
+    
+        self.info.setFont(fuente)
         layout.addWidget(self.info)
 
         btns = QHBoxLayout()
         self.load_btn = QPushButton("Cargar .wav")
         self.compress_btn = QPushButton("Comprimir (RLE adaptado)")
         self.decompress_btn = QPushButton("Descomprimir .arle")
+        for btn in [self.load_btn, self.compress_btn, self.decompress_btn]:
+            btn.setMinimumHeight(40)
+            btn.setFont(fuente)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background: #2f3136;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                QPushButton:hover { background: #fc5e5b; }
+                QPushButton:pressed { background: #fc5e5b; }
+            """)
         btns.addWidget(self.load_btn)
         btns.addWidget(self.compress_btn)
         btns.addWidget(self.decompress_btn)
@@ -305,7 +365,34 @@ class VentanaPrincipal(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Compresor de Datos - PyQt5")
+        self.setStyleSheet("""
+            QMainWindow {
+                background: #F0F0F0;
+            }
+            QTabWidget::pane {
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                background: white;
+            }
+            QTabBar::tab {
+                background: #F0F0F0;
+                padding: 12px 24px;
+                margin-right: 2px;
+                border-top-left-radius: 5px;
+                border-top-right-radius: 5px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QTabBar::tab:selected {
+                background: #F0F0F0;
+                border-bottom: 3px solid #fc5e5b;
+            }
+            QTabBar::tab:hover {
+                background: #e8e8e8;
+            }
+        """)
         tabs = QTabWidget()
+        tabs.setFont(fuente)
         tabs.addTab(TextoTab(), "Texto (Huffman)")
         tabs.addTab(ImagenTab(), "Imagen (RLE)")
         tabs.addTab(AudioTab(), "Audio (RLE adaptado)")
