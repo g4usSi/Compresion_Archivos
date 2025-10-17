@@ -1,17 +1,14 @@
 import sys, os
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QTextEdit, QLabel, QFileDialog, QMessageBox, QFrame
+    QPushButton, QTextEdit, QLabel, QFileDialog, QMessageBox, QFrame, QDialog, QStyleFactory
 )
 from PyQt5.QtCore import Qt
-
-# ====== IMPORTA TUS MÓDULOS ======
 from compresion import text_compressor, image_compressor, audio_compressor
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "assets", "outputs")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# ====== FUNCIONES AUXILIARES ======
 def format_size(bytes_size):
     for unit in ['B', 'KB', 'MB', 'GB']:
         if bytes_size < 1024.0:
@@ -24,7 +21,38 @@ def get_compression_ratio(original, compressed):
         return 0
     return ((original - compressed) / original) * 100
 
-# ====== VISTAS ======
+def show_message(self, title, message, tipo="info"):
+    dlg = QDialog(self)
+    dlg.setWindowTitle(title)
+
+    # Fondo según tipo
+    if tipo == "info":
+        dlg.setStyleSheet("background-color: #1E2A38;")  
+    elif tipo == "warning":
+        dlg.setStyleSheet("background-color: #3E1F00;") 
+    elif tipo == "error":
+        dlg.setStyleSheet("background-color: #5C0000;")  
+
+    layout = QVBoxLayout(dlg)
+    
+    label = QLabel(message)
+    label.setStyleSheet("color: white; font-size: 14px;")
+    label.setWordWrap(True)
+    layout.addWidget(label)
+    
+    btn = QPushButton("OK")
+    btn.setStyleSheet("""
+        background-color: #00B8D9;
+        color: white;
+        border-radius: 6px;
+        min-width: 80px;
+        min-height: 30px;
+    """)
+    btn.clicked.connect(dlg.accept)
+    layout.addWidget(btn)
+    
+    dlg.exec()
+
 class TextoView(QWidget):
     def __init__(self):
         super().__init__()
@@ -36,7 +64,6 @@ class TextoView(QWidget):
         label.setStyleSheet("color: #A5EFFF; font-size: 18px; font-weight: bold;")
         layout.addWidget(label)
 
-        # Botones
         self.load_btn = QPushButton("Cargar Archivo")
         self.comp_btn = QPushButton("Comprimir")
         self.decomp_btn = QPushButton("Descomprimir")
@@ -56,7 +83,6 @@ class TextoView(QWidget):
             """)
             layout.addWidget(b)
 
-        # Área de resultados
         self.result = QTextEdit()
         self.result.setReadOnly(True)
         self.result.setStyleSheet("""
@@ -67,7 +93,7 @@ class TextoView(QWidget):
                 border-radius: 10px;
                 padding: 12px;
                 font-family: Consolas;
-                font-size: 15px;
+                font-size: 20px;
             }
         """)
         layout.addWidget(self.result)
@@ -87,7 +113,7 @@ class TextoView(QWidget):
 
     def compress(self):
         if not self.filepath:
-            QMessageBox.warning(self, "Error", "Carga primero un archivo .txt")
+            show_message("Error", "Carga primero un archivo .txt", tipo="warning")
             return
         try:
             out = text_compressor.comprimir_archivo(self.filepath, OUT_DIR)
@@ -111,16 +137,16 @@ class TextoView(QWidget):
                 f"Total bits simulados: {total_bits}"
             )
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            show_message(self, "Error", str(e), tipo="error")
 
     def decompress(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar .bin (Huffman)", "", "Binary files (*.bin)")
         if fn:
             try:
                 out = text_compressor.descomprimir_archivo(fn, OUT_DIR)
-                QMessageBox.information(self, "Listo", f"Archivo descomprimido:\n{out}")
+                show_message(self, "Listo", f"Archivo descomprimido:\n{out}", tipo="info")
             except Exception as e:
-                QMessageBox.critical(self, "Error", str(e))
+                show_message(self, "Error", str(e), tipo="error")
 
 
 
@@ -185,7 +211,7 @@ class ImagenView(QWidget):
 
     def compress(self):
         if not self.filepath:
-            QMessageBox.warning(self, "Error", "Carga primero una imagen")
+            show_message("Error", "Carga primero una imagen", tipo="warning")
             return
         try:
             out = image_compressor.comprimir_imagen(self.filepath, OUT_DIR)
@@ -218,16 +244,16 @@ class ImagenView(QWidget):
                 f"Colores únicos: {len(unique_colors)}"
             )
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            show_message(self, "Error", str(e), tipo="error")
 
     def decompress(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar .rle", "", "RLE files (*.rle)")
         if fn:
             try:
                 out = image_compressor.descomprimir_imagen(fn, OUT_DIR)
-                QMessageBox.information(self, "Listo", f"Imagen reconstruida: {out}")
+                show_message(self, "Listo", f"Imagen reconstruida:\n{out}", tipo="info")
             except Exception as e:
-                QMessageBox.critical(self, "Error", str(e))
+                show_message(self, "Error", str(e), tipo="error")
 
 
 
@@ -292,7 +318,7 @@ class AudioView(QWidget):
 
     def compress(self):
         if not self.filepath:
-            QMessageBox.warning(self, "Error", "Carga primero un archivo de audio")
+            show_message("Error", "Carga primero un archivo de audio", tipo="warning")
             return
         try:
             out, stats = audio_compressor.comprimir_wav(self.filepath, OUT_DIR)
@@ -322,16 +348,16 @@ class AudioView(QWidget):
                 f"Notas: {stats}"
             )
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            show_message(self, "Error", str(e), tipo="error")
 
     def decompress(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar .arle", "", "Audio-RLE files (*.arle)")
         if fn:
             try:
                 out = audio_compressor.descomprimir_wav(fn, OUT_DIR)
-                QMessageBox.information(self, "Listo", f"Audio reconstruido: {out}")
+                show_message(self, "Listo", f"Audio reconstruido:\n{out}", tipo="info")
             except Exception as e:
-                QMessageBox.critical(self, "Error", str(e))
+                show_message(self, "Error", str(e), tipo="error")
 
 
 
