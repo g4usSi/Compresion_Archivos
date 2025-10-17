@@ -1,0 +1,305 @@
+import customtkinter as ctk
+from tkinter import filedialog, messagebox
+import os
+import pickle
+import tempfile
+import struct
+from PIL import Image, ImageTk
+import wave
+import pyaudio
+from compresion import text_compressor, image_compressor, audio_compressor  # Ajusta si no hay carpeta
+
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
+
+OUT_DIR = os.path.join(os.path.dirname(__file__), "assets", "outputs")
+os.makedirs(OUT_DIR, exist_ok=True)
+
+def format_size(bytes_size):
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if bytes_size < 1024.0:
+            return f"{bytes_size:.2f} {unit}"
+        bytes_size /= 1024.0
+    return f"{bytes_size:.2f} TB"
+
+def get_compression_ratio(original, compressed):
+    if original == 0: return 0
+    return ((original - compressed) / original) * 100
+
+class CompressorApp(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+        self.title("Proyecto 3 - Compresor Multimedial")
+        self.state("zoomed")
+        self.original_size = 0
+        self.compressed_size = 0
+        self.create_interface()
+
+    def create_interface(self):
+        # Sidebar
+        self.sidebar = ctk.CTkFrame(self, width=260, corner_radius=0)
+        self.sidebar.pack(side="left", fill="y")
+
+        ctk.CTkLabel(self.sidebar, text="🗜️ Compresor Multimedial", font=("Segoe UI", 24, "bold")).pack(pady=(30,10))
+        ctk.CTkLabel(self.sidebar, text="Proyecto 3 • Estructuras de Datos II", font=("Segoe UI", 13)).pack(pady=(0,30))
+
+        self.text_btn = ctk.CTkButton(self.sidebar, text="Texto (Huffman)", height=45, command=self.show_text)
+        self.img_btn = ctk.CTkButton(self.sidebar, text="Imagen (RLE)", height=45, command=self.show_image)
+        self.aud_btn = ctk.CTkButton(self.sidebar, text="Audio (RLE Universal)", height=45, command=self.show_audio)
+
+        for b in [self.text_btn, self.img_btn, self.aud_btn]:
+            b.pack(pady=10, padx=20, fill="x")
+
+        self.result_box = ctk.CTkTextbox(self.sidebar, width=230, height=200, corner_radius=10)
+        self.result_box.pack(pady=25, padx=10)
+        self.result_box.insert("end", "Bienvenido al Compresor Multimedial\n\nSeleccione un modo a la izquierda.")
+        self.result_box.configure(state="disabled")
+
+        # Main frame
+        self.main_frame = ctk.CTkFrame(self, corner_radius=20)
+        self.main_frame.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        self.banner()
+
+    def banner(self):
+        for w in self.main_frame.winfo_children():
+            w.destroy()
+        banner = ctk.CTkFrame(self.main_frame, height=130, fg_color="#111827", corner_radius=15)
+        banner.pack(fill="x", pady=(0,15))
+        ctk.CTkLabel(banner, text="Sistema de Compresión Multimedial", font=("Segoe UI", 30, "bold")).pack(pady=(20,0))
+        ctk.CTkLabel(banner, text="Compresión y descompresión de Texto, Imágenes y Audio desde una misma interfaz.", font=("Segoe UI", 16)).pack()
+        info = ctk.CTkLabel(self.main_frame, text="Seleccione una opción en el panel lateral para comenzar.", font=("Segoe UI", 18))
+        info.pack(expand=True)
+
+    def clear_main(self):
+        for w in self.main_frame.winfo_children():
+            w.destroy()
+
+    def update_result(self, text):
+        self.result_box.configure(state="normal")
+        self.result_box.delete("1.0","end")
+        self.result_box.insert("end", text)
+        self.result_box.configure(state="disabled")
+
+    # ================= TEXT =================
+    def show_text(self):
+        self.clear_main()
+        ctk.CTkLabel(self.main_frame, text="Compresión de Texto (Huffman)", font=("Segoe UI", 28, "bold")).pack(pady=20)
+        frame = ctk.CTkFrame(self.main_frame, fg_color="#111827", corner_radius=15)
+        frame.pack(pady=10, padx=20, fill="both", expand=True)
+
+        ctk.CTkButton(frame, text="Comprimir Texto", width=250, height=50, command=self.compress_text).pack(pady=10)
+        ctk.CTkButton(frame, text="Descomprimir Texto", width=250, height=50, command=self.decompress_text).pack(pady=10)
+
+    def compress_text(self):
+        path = filedialog.askopenfilename(filetypes=[("Text files","*.txt")])
+        if not path: return
+        try:
+            out = text_compressor.comprimir_archivo(path, OUT_DIR)
+            orig = os.path.getsize(path)
+            comp = os.path.getsize(out)
+            ratio = get_compression_ratio(orig, comp)
+            msg = f"Archivo Original: {os.path.basename(path)} ({format_size(orig)})\nArchivo Comprimido: {os.path.basename(out)} ({format_size(comp)})\nRatio de compresión: {ratio:.2f}%\nUbicación: {out}"
+            self.update_result(msg)
+        except Exception as e:
+            messagebox.showerror("Error de compresión", str(e))
+
+    def decompress_text(self):
+        path = filedialog.askopenfilename(filetypes=[("Huffman files","*.huff")])
+        if not path: return
+        try:
+            out = text_compressor.descomprimir_archivo(path, OUT_DIR)
+            msg = f"Archivo descomprimido:\n{out}"
+            self.update_result(msg)
+        except Exception as e:
+            messagebox.showerror("Error de descompresión", str(e))
+
+    # ================= IMAGE =================
+    def show_image(self):
+        self.clear_main()
+        ctk.CTkLabel(self.main_frame, text="Compresión de Imágenes (RLE)", font=("Segoe UI", 28, "bold")).pack(pady=20)
+        frame = ctk.CTkFrame(self.main_frame, fg_color="#111827", corner_radius=15)
+        frame.pack(pady=10, padx=20, fill="both", expand=True)
+        ctk.CTkButton(frame, text="Comprimir Imagen", width=250, height=50, command=self.compress_image).pack(pady=10)
+        ctk.CTkButton(frame, text="Descomprimir Imagen", width=250, height=50, command=self.decompress_image).pack(pady=10)
+        self.preview_label = ctk.CTkLabel(frame, text="Vista previa de imagen")
+        self.preview_label.pack(pady=25)
+
+    def compress_image(self):
+        path = filedialog.askopenfilename(filetypes=[("Imágenes","*.png;*.bmp")])
+        if not path: return
+        try:
+            out = image_compressor.comprimir_imagen(path, OUT_DIR)
+            orig = os.path.getsize(path)
+            comp = os.path.getsize(out)
+            ratio = get_compression_ratio(orig, comp)
+            msg = f"Imagen Original: {os.path.basename(path)} ({format_size(orig)})\nArchivo Comprimido: {os.path.basename(out)} ({format_size(comp)})\nRatio: {ratio:.2f}%\nUbicación: {out}"
+            self.update_result(msg)
+            self.preview_image(path)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def decompress_image(self):
+        path = filedialog.askopenfilename(filetypes=[("RLE files","*.rle")])
+        if not path: return
+        try:
+            out = image_compressor.descomprimir_imagen(path, OUT_DIR)
+            msg = f"Imagen descomprimida:\n{out}"
+            self.update_result(msg)
+            self.preview_image(out)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+    def preview_image(self, path):
+        img = Image.open(path)
+        img.thumbnail((350,350))
+        tk_img = ImageTk.PhotoImage(img)
+        self.preview_label.configure(image=tk_img, text="")
+        self.preview_label.image = tk_img
+
+    # ================= AUDIO =================
+    # ======== AUDIO ========
+    def show_audio(self):
+        self.clear_main()
+        ctk.CTkLabel(self.main_frame, text="Compresión de Audio (RLE WAV)", font=("Segoe UI", 28, "bold")).pack(pady=20)
+        frame = ctk.CTkFrame(self.main_frame, fg_color="#111827", corner_radius=15)
+        frame.pack(pady=10, padx=20, fill="both", expand=True)
+
+        ctk.CTkButton(frame, text="Cargar Audio", width=250, height=50, command=self.load_audio).pack(pady=10)
+        ctk.CTkButton(frame, text="Comprimir Audio", width=250, height=50, command=self.compress_audio).pack(pady=10)
+        ctk.CTkButton(frame, text="Descomprimir Audio", width=250, height=50, command=self.decompress_audio).pack(pady=10)
+
+    def load_audio(self):
+        self.audio_path = filedialog.askopenfilename(filetypes=[("WAV files","*.wav")])
+        if not hasattr(self, 'audio_path') or not self.audio_path:
+            return
+        size = os.path.getsize(self.audio_path)
+        self.update_result(f"🎵 Audio seleccionado: {os.path.basename(self.audio_path)} ({size} bytes)")
+        
+    def compress_audio(self):
+        if not hasattr(self, 'audio_path') or not self.audio_path:
+            messagebox.showwarning("Error", "Selecciona primero un archivo WAV")
+            return
+
+        in_path = self.audio_path
+        base_name = os.path.splitext(os.path.basename(in_path))[0]
+        out_path = os.path.join(OUT_DIR, base_name + ".arle")
+
+        try:
+            with wave.open(in_path, "rb") as wf:
+                n_channels = wf.getnchannels()
+                sampwidth = wf.getsampwidth()
+                framerate = wf.getframerate()
+                n_frames = wf.getnframes()
+                frames = wf.readframes(n_frames)
+
+            # Convertir a lista de muestras
+            fmt = {1:"B", 2:"h", 4:"i"}[sampwidth]
+            import array
+            samples = array.array(fmt)
+            samples.frombytes(frames)
+
+            # Aplicar RLE
+            compressed = []
+            prev = samples[0]
+            count = 1
+            for s in samples[1:]:
+                if s == prev and count < 65535:  # 2 bytes para contar
+                    count += 1
+                else:
+                    compressed.append((prev, count))
+                    prev = s
+                    count = 1
+            compressed.append((prev, count))
+
+            # Guardar comprimido
+            with open(out_path, "wb") as f:
+                # Header simple
+                f.write(struct.pack("HHI", n_channels, sampwidth*8, framerate))
+                f.write(struct.pack("I", len(samples)))  # total muestras
+                f.write(struct.pack("I", len(compressed)))  # corridas
+                # Datos RLE
+                for val, cnt in compressed:
+                    f.write(struct.pack("hH", val, cnt))  # 16 bits valor, 16 bits count
+
+            # Estadísticas
+            avg_run = len(samples) / len(compressed)
+            msg = (
+                f"🎵 Audio Comprimido con éxito\n"
+                f"Archivo Original: {os.path.basename(in_path)} ({os.path.getsize(in_path)} bytes)\n"
+                f"Archivo Comprimido: {os.path.basename(out_path)} ({os.path.getsize(out_path)} bytes)\n"
+                f"Compresión real: {get_compression_ratio(os.path.getsize(in_path), os.path.getsize(out_path)):.2f}%\n\n"
+                f"--- Estadísticas RLE (Audio) ---\n"
+                f"Canales: {n_channels}\n"
+                f"Profundidad de bits: {sampwidth*8}\n"
+                f"Muestras totales: {len(samples)}\n"
+                f"Corridas detectadas: {len(compressed)}\n"
+                f"Promedio de longitud por corrida: {avg_run:.2f} muestras\n"
+                f"Frecuencia de muestreo: {framerate} Hz\n"
+            )
+            self.update_result(msg)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo comprimir el audio: {e}")
+
+
+    def decompress_audio(self):
+        path = filedialog.askopenfilename(filetypes=[("RLE Audio","*.arle")])
+        if not path:
+            return
+
+        out_path = os.path.splitext(path)[0] + "_descomprimido.wav"
+        try:
+            with open(path, "rb") as f:
+                n_channels, bits, framerate = struct.unpack("HHI", f.read(8))
+                sampwidth = bits // 8
+                n_samples = struct.unpack("I", f.read(4))[0]
+                n_runs = struct.unpack("I", f.read(4))[0]
+
+                import array
+                samples = array.array('h')
+                for _ in range(n_runs):
+                    val, cnt = struct.unpack("hH", f.read(4))
+                    samples.extend([val]*cnt)
+
+            with wave.open(out_path, "wb") as wf:
+                wf.setnchannels(n_channels)
+                wf.setsampwidth(sampwidth)
+                wf.setframerate(framerate)
+                wf.writeframes(samples.tobytes())
+
+            msg = (
+                f"🎵 Audio Descomprimido con éxito\n"
+                f"Archivo comprimido: {os.path.basename(path)} ({os.path.getsize(path)} bytes)\n"
+                f"Archivo descomprimido: {os.path.basename(out_path)} ({os.path.getsize(out_path)} bytes)\n"
+                f"Ubicación: {out_path}"
+            )
+            self.update_result(msg)
+            self.play_audio(out_path)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo descomprimir el audio: {e}")
+
+
+    def play_audio(self, path):
+        try:
+            wf = wave.open(path, "rb")
+            p = pyaudio.PyAudio()
+            stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                            channels=wf.getnchannels(),
+                            rate=wf.getframerate(),
+                            output=True)
+            chunk = 1024
+            data = wf.readframes(chunk)
+            while data:
+                stream.write(data)
+                data = wf.readframes(chunk)
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+        except Exception as e:
+            messagebox.showwarning("Error", f"No se pudo reproducir el audio: {e}")
+
+
+if __name__ == "__main__":
+    app = CompressorApp()
+    app.mainloop()
