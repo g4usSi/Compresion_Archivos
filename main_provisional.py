@@ -116,7 +116,7 @@ class TextoView(QWidget):
     # Llamar función de compresión de texto
     def compress(self):
         if not self.filepath:
-            show_message(self,"Error", "⚠️ Carga primero un archivo .txt", tipo="warning")
+            show_message(self,"Error", "> Carga primero un archivo .txt <", tipo="warning")
             
             return
         try:
@@ -139,8 +139,6 @@ class TextoView(QWidget):
                 f"Ruta del archivo comprimido: {out}\n\n"
                 f"--- Detalles ---\n"
                 f"Total de bits utilizados: {total_bits}\n"
-                f"Padding agregado: {padding} bits\n"
-                f"Caracteres únicos: {len(freq)}"
             )
         except Exception as e:
             show_message(self, "Error", str(e), tipo="error")
