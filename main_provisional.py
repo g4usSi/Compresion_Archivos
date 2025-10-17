@@ -124,21 +124,23 @@ class TextoView(QWidget):
             orig = os.path.getsize(self.filepath)
             comp = os.path.getsize(out)
 
-            import pickle
             with open(out, 'rb') as f:
-                freq, bits = pickle.load(f)
+                freq, padding, data_bytes = pickle.load(f)
 
-            total_bits = len(bits)
-            tamano_teorico_bytes = total_bits / 8
-            porcentaje_compresion = (1 - (tamano_teorico_bytes / orig)) * 100 if orig != 0 else 0
+            total_bits = len(data_bytes) * 8 - padding
+            tamano_real_comprimido = len(data_bytes)
+            porcentaje_compresion = (1 - (tamano_real_comprimido / orig)) * 100 if orig != 0 else 0
 
             self.result.setPlainText(
                 f"Archivo Original: {os.path.basename(self.filepath)} ({orig} bytes)\n"
-                f"Archivo Comprimido (pickle): {comp} bytes\n"
-                f"Tamaño teórico (empaquetado): {tamano_teorico_bytes:.2f} bytes\n"
-                f"Compresión teórica: {porcentaje_compresion:.2f}%\n"
-                f"Ruta del archivo comprimido: {out}\n"
-                f"Total bits simulados: {total_bits}"
+                f"Tamaño comprimido (binario puro): {tamano_real_comprimido} bytes\n"
+                f"Tamaño archivo .bin (con metadatos): {comp} bytes\n"
+                f"Compresión lograda: {porcentaje_compresion:.2f}%\n"
+                f"Ruta del archivo comprimido: {out}\n\n"
+                f"--- Detalles ---\n"
+                f"Total de bits utilizados: {total_bits}\n"
+                f"Padding agregado: {padding} bits\n"
+                f"Caracteres únicos: {len(freq)}"
             )
         except Exception as e:
             show_message(self, "Error", str(e), tipo="error")
@@ -152,8 +154,6 @@ class TextoView(QWidget):
                 show_message(self, "Listo", f"⚠️ Archivo descomprimido:\n{out}", tipo="info")
             except Exception as e:
                 show_message(self, "Error", str(e), tipo="error")
-
-
 
 class ImagenView(QWidget):
     def __init__(self):

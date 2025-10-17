@@ -1,5 +1,5 @@
 # Importacion de modulos necesarios
-import os, pickle
+import os, pickle, struct
 from collections import Counter
 import heapq
 
@@ -70,6 +70,35 @@ def construir_codigo(node, prefix="", table=None):
 
 
 # -------------------------------------------------------------
+# Funcion auxiliar: convertir cadena de bits a bytes
+# -------------------------------------------------------------
+def bitstring_a_bytes(bitstring):
+    # Rellenar con ceros a la izquierda hasta que sea multiplo de 8
+    padding = 8 - (len(bitstring) % 8)
+    if padding != 8:
+        bitstring = bitstring + '0' * padding
+    
+    # Convertir grupos de 8 bits a bytes
+    bytes_list = bytearray()
+    for i in range(0, len(bitstring), 8):
+        byte = bitstring[i:i+8]
+        bytes_list.append(int(byte, 2))
+    
+    return bytes(bytes_list), padding
+
+
+# -------------------------------------------------------------
+# Funcion auxiliar: convertir bytes a cadena de bits
+# -------------------------------------------------------------
+def bytes_a_bitstring(data, padding):
+    bitstring = ''.join(format(byte, '08b') for byte in data)
+    # Remover el padding agregado
+    if padding != 8:
+        bitstring = bitstring[:-padding]
+    return bitstring
+
+
+# -------------------------------------------------------------
 # Funcion para comprimir texto usando Huffman
 # -------------------------------------------------------------
 def comprimir_texto(txt):
@@ -81,8 +110,10 @@ def comprimir_texto(txt):
     codes = construir_codigo(tree)
     # Reemplazar cada caracter por su codigo binario correspondiente
     bitstring = ''.join(codes[ch] for ch in txt)
-    # Devolver frecuencias y cadena codificada
-    return freq, bitstring
+    # Convertir a bytes
+    data_bytes, padding = bitstring_a_bytes(bitstring)
+    # Devolver frecuencias, bytes comprimidos y padding
+    return freq, data_bytes, padding
 
 
 # -------------------------------------------------------------
@@ -94,15 +125,15 @@ def comprimir_archivo(input_path, out_dir):
         text = f.read()
 
     # Comprimir el texto
-    freq, bits = comprimir_texto(text)
+    freq, data_bytes, padding = comprimir_texto(text)
 
     # Crear el nombre del archivo comprimido (.bin)
     basename = os.path.splitext(os.path.basename(input_path))[0]
     out_path = os.path.join(out_dir, basename + ".bin")
 
-    # Guardar las frecuencias y el texto comprimido usando pickle
+    # Guardar las frecuencias, padding y datos comprimidos usando pickle
     with open(out_path, 'wb') as f:
-        pickle.dump((freq, bits), f)
+        pickle.dump((freq, padding, data_bytes), f)
 
     # Devolver la ruta del archivo comprimido
     return out_path
@@ -112,9 +143,12 @@ def comprimir_archivo(input_path, out_dir):
 # Funcion para descomprimir un archivo comprimido (.bin)
 # -------------------------------------------------------------
 def descomprimir_archivo(bin_path, out_dir):
-    # Cargar las frecuencias y bits desde el archivo
+    # Cargar las frecuencias, padding y bytes desde el archivo
     with open(bin_path, 'rb') as f:
-        freq, bits = pickle.load(f)
+        freq, padding, data_bytes = pickle.load(f)
+
+    # Convertir bytes nuevamente a bitstring
+    bitstring = bytes_a_bitstring(data_bytes, padding)
 
     # Reconstruir el arbol de Huffman a partir de las frecuencias
     tree = construir_arbol(freq)
@@ -126,7 +160,7 @@ def descomprimir_archivo(bin_path, out_dir):
     # Decodificar el texto bit a bit
     decoded_chars = []
     buffer = ""
-    for bit in bits:
+    for bit in bitstring:
         buffer += bit
         if buffer in rev:
             decoded_chars.append(rev[buffer])

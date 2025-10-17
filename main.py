@@ -68,29 +68,31 @@ class TextoTab(QWidget):
         orig = os.path.getsize(self.filepath)
         comp = os.path.getsize(out)
 
-        # 🔹 Leer el archivo comprimido (.bin) para contar los bits simulados
+        # 🔹 Leer el archivo comprimido (.bin) para obtener los datos comprimidos
         import pickle
         with open(out, 'rb') as f:
-            freq, bits = pickle.load(f)  # "bits" es la cadena de 0 y 1
+            freq, padding, data_bytes = pickle.load(f)
 
-        # Contar los caracteres '0' y '1'
-        count_0 = bits.count('0')
-        count_1 = bits.count('1')
-        total_bits = len(bits)
+        # Calcular estadísticas
+        total_bits = len(data_bytes) * 8 - padding  # bits reales sin padding
+        tamano_real_comprimido = len(data_bytes)  # tamaño en bytes del binario puro
+        porcentaje_compresion = (1 - (tamano_real_comprimido / orig)) * 100 if orig != 0 else 0
 
-        #Calculo teorico: empaquetar los bits reales
-        tamano_teorico_bytes = total_bits / 8  # dividir bits entre 8 para convertir a bytes
-        porcentaje_compresion = (1 - (tamano_teorico_bytes / orig)) * 100 if orig != 0 else 0
+        # Contar frecuencias para estadisticas
+        total_caracteres = sum(freq.values())
 
-        #Mostrar resultados
+        # Mostrar resultados
         self.resultado.setPlainText(
             f"Comprimido: {out}\n"
             f"Tamaño original: {orig} bytes\n"
-            f"Tamaño comprimido (pickle): {comp} bytes\n"
-            f"Tamaño teórico (empaquetado): {tamano_teorico_bytes:.2f} bytes\n"
-            f"Compresión teórica: {porcentaje_compresion:.2f}%\n\n"
+            f"Tamaño comprimido (binario puro): {tamano_real_comprimido} bytes\n"
+            f"Tamaño archivo .bin (con metadatos): {comp} bytes\n"
+            f"Compresión lograda: {porcentaje_compresion:.2f}%\n\n"
             f"--- Estadísticas de codificación ---\n"
-            f"Total de bits simulados: {total_bits}\n"
+            f"Total de caracteres: {total_caracteres}\n"
+            f"Total de bits utilizados: {total_bits}\n"
+            f"Caracteres únicos: {len(freq)}\n"
+            f"Padding agregado: {padding} bits\n"
         )
 
     def decompress(self):
