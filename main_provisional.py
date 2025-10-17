@@ -9,6 +9,7 @@ from compresion import text_compressor, image_compressor, audio_compressor
 OUT_DIR = os.path.join(os.path.dirname(__file__), "assets", "outputs")
 os.makedirs(OUT_DIR, exist_ok=True)
 
+  # Convierte bytes a KB, MB, GB...
 def format_size(bytes_size):
     for unit in ['B', 'KB', 'MB', 'GB']:
         if bytes_size < 1024.0:
@@ -16,16 +17,16 @@ def format_size(bytes_size):
         bytes_size /= 1024.0
     return f"{bytes_size:.2f} TB"
 
+# Calcula el % de compresión
 def get_compression_ratio(original, compressed):
     if original == 0:
         return 0
     return ((original - compressed) / original) * 100
 
-def show_message(self, title, message, tipo="info"):
+def show_message(self, title, message, tipo):
     dlg = QDialog(self)
     dlg.setWindowTitle(title)
 
-    # Fondo según tipo
     if tipo == "info":
         dlg.setStyleSheet("background-color: #1E2A38;")  
     elif tipo == "warning":
@@ -82,7 +83,7 @@ class TextoView(QWidget):
                 QPushButton:pressed { background-color: #008EA8; }
             """)
             layout.addWidget(b)
-
+        # Área de resultados
         self.result = QTextEdit()
         self.result.setReadOnly(True)
         self.result.setStyleSheet("""
@@ -103,6 +104,7 @@ class TextoView(QWidget):
         self.comp_btn.clicked.connect(self.compress)
         self.decomp_btn.clicked.connect(self.decompress)
 
+    # Abrir diálogo para seleccionar txt
     def load_file(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar txt", "", "Text files (*.txt)")
         if fn:
@@ -111,9 +113,11 @@ class TextoView(QWidget):
             size = format_size(os.path.getsize(fn))
             self.result.setPlainText(f"{name} ({size})")
 
+    # Llamar función de compresión de texto
     def compress(self):
         if not self.filepath:
-            show_message("Error", "Carga primero un archivo .txt", tipo="warning")
+            show_message(self,"Error", "⚠️ Carga primero un archivo .txt", tipo="warning")
+            
             return
         try:
             out = text_compressor.comprimir_archivo(self.filepath, OUT_DIR)
@@ -139,12 +143,13 @@ class TextoView(QWidget):
         except Exception as e:
             show_message(self, "Error", str(e), tipo="error")
 
+    # Llamar función de descompresión de texto
     def decompress(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar .bin (Huffman)", "", "Binary files (*.bin)")
         if fn:
             try:
                 out = text_compressor.descomprimir_archivo(fn, OUT_DIR)
-                show_message(self, "Listo", f"Archivo descomprimido:\n{out}", tipo="info")
+                show_message(self, "Listo", f"⚠️ Archivo descomprimido:\n{out}", tipo="info")
             except Exception as e:
                 show_message(self, "Error", str(e), tipo="error")
 
@@ -202,6 +207,7 @@ class ImagenView(QWidget):
         self.comp_btn.clicked.connect(self.compress)
         self.decomp_btn.clicked.connect(self.decompress)
 
+    # Abrir diálogo para seleccionar imagen
     def load_file(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar imagen", "", "Images (*.png *.jpg *.bmp)")
         if fn:
@@ -209,9 +215,10 @@ class ImagenView(QWidget):
             size = format_size(os.path.getsize(fn))
             self.result.setPlainText(f"{os.path.basename(fn)} ({size})")
 
+    # Llamar función de compresión de imagen
     def compress(self):
         if not self.filepath:
-            show_message("Error", "Carga primero una imagen", tipo="warning")
+            show_message(self, "Error", "⚠️ Carga primero una imagen", tipo="warning")
             return
         try:
             out = image_compressor.comprimir_imagen(self.filepath, OUT_DIR)
@@ -246,6 +253,7 @@ class ImagenView(QWidget):
         except Exception as e:
             show_message(self, "Error", str(e), tipo="error")
 
+    # Llamar función de descompresión de imagen
     def decompress(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar .rle", "", "RLE files (*.rle)")
         if fn:
@@ -287,8 +295,7 @@ class AudioView(QWidget):
                 QPushButton:pressed { background-color: #008EA8; }
             """)
             layout.addWidget(b)
-
-        # Área de resultados
+         # Área de resultados
         self.result = QTextEdit()
         self.result.setReadOnly(True)
         self.result.setStyleSheet("""
@@ -309,6 +316,7 @@ class AudioView(QWidget):
         self.comp_btn.clicked.connect(self.compress)
         self.decomp_btn.clicked.connect(self.decompress)
 
+    # Abrir diálogo para seleccionar audio
     def load_file(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar audio", "", "Audio files (*.wav *.mp3 *.flac)")
         if fn:
@@ -316,9 +324,10 @@ class AudioView(QWidget):
             size = format_size(os.path.getsize(fn))
             self.result.setPlainText(f"🎵 {os.path.basename(fn)} ({size})")
 
+    # Llamar función de compresión de audio
     def compress(self):
         if not self.filepath:
-            show_message("Error", "Carga primero un archivo de audio", tipo="warning")
+            show_message(self,"Error", "Carga primero un archivo de audio", tipo="warning")
             return
         try:
             out, stats = audio_compressor.comprimir_wav(self.filepath, OUT_DIR)
@@ -350,6 +359,7 @@ class AudioView(QWidget):
         except Exception as e:
             show_message(self, "Error", str(e), tipo="error")
 
+    # Llamar función de descompresión de audio
     def decompress(self):
         fn, _ = QFileDialog.getOpenFileName(self, "Seleccionar .arle", "", "Audio-RLE files (*.arle)")
         if fn:
@@ -412,7 +422,7 @@ class MainWindow(QMainWindow):
 
         side_layout.addStretch()
 
-        # ===== PANEL PRINCIPAL =====
+        #PANEL PRINCIPAL
         self.main_content = QFrame()
         self.main_content.setStyleSheet("""
             QFrame {
