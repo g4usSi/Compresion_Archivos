@@ -123,7 +123,7 @@ class TextoView(QWidget):
             out = text_compressor.comprimir_archivo(self.filepath, OUT_DIR)
             orig = os.path.getsize(self.filepath)
             comp = os.path.getsize(out)
-
+            import pickle
             with open(out, 'rb') as f:
                 freq, padding, data_bytes = pickle.load(f)
 
